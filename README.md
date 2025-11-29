@@ -34,9 +34,3 @@ docker run -d --network host \
 docker rm -f agl-cli
 
 ```
-
-```sh
-source /home/siao/.venv/bin/activate
-
-
-```
