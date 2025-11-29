@@ -1,0 +1,71 @@
+services:
+  agl-store:
+    image: agl/store:dev
+    ports:
+      - "45993:4747"
+    # command: agl store --host 0.0.0.0 --port 4747 --log-level DEBUG
+    command: agl store --host 0.0.0.0 --port 4747 --log-level DEBUG --prometheus --backend mongo --mongo-uri mongodb://mongo:27017/?replicaSet=rs0 --n-workers 4
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:8.2.2-noble
+    hostname: mongo
+    extra_hosts:
+      - "mongo:127.0.0.1"
+    ports:
+      - "27017:27017"
+    command: ["mongod", "--bind_ip_all", "--replSet", "rs0"]
+    volumes:
+      - ./mongo/init-rs.js:/docker-entrypoint-initdb.d/init-rs.js:ro
+      - ./data/mongo-host:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  mongodb-exporter:
+    image: percona/mongodb_exporter:0.47.1
+    command:
+      - '--mongodb.uri=mongodb://mongo:27017/'
+      - '--collect-all'
+      - '--mongodb.collstats-colls=agentlightning.rollouts,agentlightning.attempts,agentlightning.spans,agentlightning.resources,agentlightning.workers,agentlightning.rollout_queue,agentlightning.span_sequence_ids'
+    depends_on:
+      - mongo
+    ports:
+      - "9216:9216"
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    # WSL2/Linux compatible configuration
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+
+  prometheus:
+    image: prom/prometheus:latest
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=1h'
+    volumes:
+      - ./prometheus.mongo-store.yml:/etc/prometheus/prometheus.yml:ro
+      - ./data/prometheus:/prometheus
+    depends_on:
+      - agl-store
+      - mongodb-exporter
+      - node-exporter
+    ports:
+      - "9090:9090"
