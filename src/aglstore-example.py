@@ -19,7 +19,7 @@ except ImportError:
 
 async def main():
     # Connect to the store server (assuming it's running on default port 4747)
-    server_address = "http://localhost:4747"
+    server_address = "http://localhost:45993"
     client = LightningStoreClient(server_address=server_address)
     
     print(f"Connecting to LightningStore at {server_address}...")
