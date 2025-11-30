@@ -4,7 +4,7 @@ import sys
 def test_crud():
     try:
         # 1. Connect
-        client = pymongo.MongoClient("mongodb://localhost:27017/")
+        client = pymongo.MongoClient("mongodb://localhost:27017/", directConnection=True)
         
         # Check connection
         client.admin.command('ping')
