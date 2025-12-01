@@ -10,7 +10,7 @@ def main():
 
     # Connect to the store server (assuming it's running on default port 4747)
     server_address = "http://localhost:45993"
-    client = LightningStoreClient(server_address=server_address)
+    store = LightningStoreClient(server_address=server_address)
     
     print(f"Connecting to LightningStore at {server_address}...")
 
@@ -19,7 +19,7 @@ def main():
         # 1. Start a Rollout
         print("\n--- Starting Rollout ---")
         task_input = {"prompt": "Hello world"}
-        rollout = asyncio.run(client.start_rollout(
+        rollout = asyncio.run(store.start_rollout(
             input=task_input,
             mode="test",
             metadata={"author": "example_script"}
@@ -28,7 +28,7 @@ def main():
 
         # 2. Start an Attempt
         print("\n--- Starting Attempt ---")
-        attempt = asyncio.run(client.start_attempt(rollout_id=rollout.rollout_id))
+        attempt = asyncio.run(store.start_attempt(rollout_id=rollout.rollout_id))
         # Assuming attempt is the Attempt object directly
         print(f"Attempt started: {attempt.attempt.attempt_id} (Status: {attempt.attempt.status})")
 
@@ -44,12 +44,12 @@ def main():
             end_time=1.0,
             attributes={"info": "test span"}
         )
-        added_span = asyncio.run(client.add_span(span))
+        added_span = asyncio.run(store.add_span(span))
         print(f"Span added: {added_span.span_id}")
 
         # 4. Update Rollout
         print("\n--- Updating Rollout ---")
-        updated_rollout = asyncio.run(client.update_rollout(
+        updated_rollout = asyncio.run(store.update_rollout(
             rollout_id=rollout.rollout_id,
             status="cancelled",
             metadata={"completion_reason": "success"}
@@ -59,15 +59,38 @@ def main():
 
         # 5. Query Rollouts
         print("\n--- Querying Rollouts ---")
-        rollouts_page = asyncio.run(client.query_rollouts(limit=5))
+        rollouts_page = asyncio.run(store.query_rollouts(limit=5))
         print(f"Found {rollouts_page.total} rollouts.")
         for r in rollouts_page.items:
             print(f"- {r.rollout_id} ({r.status})")
 
+        # 6. Add Resources
+        print("\n--- Adding Resources ---")
+        from agentlightning.types import LLM, PromptTemplate
+        
+        # Create named resources with an LLM and a prompt template
+        resources = {
+            "main_llm": LLM(
+                endpoint="http://localhost:8080/v1",
+                model="gpt-4o",
+                api_key="your-api-key",
+                sampling_parameters={"temperature": 0.7, "max_tokens": 100}
+            ),
+            "system_prompt": PromptTemplate(
+                template="You are a helpful assistant. Answer the question: {question}",
+                engine="f-string"
+            )
+        }
+        
+        resources_update = asyncio.run(store.add_resources(resources))
+        print(f"Resources added with ID: {resources_update.resources_id}")
+        print(f"Version: {resources_update.version}")
+        print(f"Resource names: {list(resources_update.resources.keys())}")
+
     except Exception as e:
         print(f"An error occurred: {e}")
     finally:
-        asyncio.run(client.close())
+        asyncio.run(store.close())
 
 if __name__ == "__main__":
     main()
