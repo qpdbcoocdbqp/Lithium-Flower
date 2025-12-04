@@ -18,24 +18,29 @@ class BaseTemplate:
 
 class Critique(BaseModel):
     textual_gradient: str
-    do: list[str]
-    avoid: list[str]
-    signal_focus: list[str]
+    # do: list[str]
+    # avoid: list[str]
+    # signal_focus: list[str]
 
 class CritiqueTemplate(BaseTemplate):
+    # _SCHEMA = (
+    #     "{{\n"
+    #     "  'textual_gradient': <1-2 strong imperative sentences telling the Rewrite LLM how to improve the instruction>,\n"
+    #     "  'do': [\n"
+    #     "    <specific phrase/constraint to ADD to the instruction>,\n"
+    #     "    <specific emphasis to STRENGTHEN>\n"
+    #     "  ],\n"
+    #     "  'avoid': [\n"
+    #     "    <types of content that are causing high non-target similarity>\n"
+    #     "  ],\n"
+    #     "  'signal_focus': [\n"
+    #     "    <keywords, entities, or structures that should be emphasized for the target>\n"
+    #     "  ]\n"
+    #     "}}\n"
+    #     )
     _SCHEMA = (
         "{{\n"
-        "  'textual_gradient': <1-2 strong imperative sentences telling the Rewrite LLM how to improve the instruction>,\n"
-        "  'do': [\n"
-        "    <specific phrase/constraint to ADD to the instruction>,\n"
-        "    <specific emphasis to STRENGTHEN>\n"
-        "  ],\n"
-        "  'avoid': [\n"
-        "    <types of content that are causing high non-target similarity>\n"
-        "  ],\n"
-        "  'signal_focus': [\n"
-        "    <keywords, entities, or structures that should be emphasized for the target>\n"
-        "  ]\n"
+        "  'textual_gradient': <1-2 strong imperative sentences telling the Rewrite LLM how to improve the instruction>\n"
         "}}\n"
         )
 
@@ -97,7 +102,7 @@ class RewriteTemplate(BaseTemplate):
         template_str = (
             "You are a Rewrite LLM. Generate an improved <instruction> that:\n"
             "1. Preserves the original user's intent\n"
-            "2. Implements the critique's `textual_gradient` and `do`/`avoid`/`signal_focus`\n\n"
+            "2. Implements the critique's `textual_gradient`\n\n"
             "You receive:\n"
             "- <instruction> {instruction} </instruction>\n"
             "- <critique> {critique} </critique>\n\n"
@@ -105,8 +110,6 @@ class RewriteTemplate(BaseTemplate):
             "- Do NOT change the original user's intent\n"
             "- Do NOT invent facts\n"
             "- Keep <instruction> concise (1 sentence ideal)\n"
-            "- Must support format: `Instruct: {{instruction}}\nQuery: {{query}}`\n"
-            "- Keep placeholder: {{query}}\n\n"
             "OUTPUT (strict JSON):\n"
             "```json\n"
         ) + self._SCHEMA + ("\n```\n")
