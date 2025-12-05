@@ -123,13 +123,13 @@ async def pull_task(queues: list):
         optim_critique = Critique.model_validate_json(optim_span[0].attributes.get("critique"))
         optim_rewrite = Rewrite.model_validate_json(optim_span[0].attributes.get("rewrite"))
         updated_reward, updated_target_similarity, updated_retrieved_result = evaluator.reward(
-            instruction=optim_rewrite.improved_instruction,
+            instruction=optim_rewrite.instruction,
             query=task.query,
             target=task.target,
             target_id=task.id
             )
         # [`span_id`, `updated-instruction`, `origin-reward`, `delta-reward`]
-        steps.append([optim_span[0].span_id, optim_rewrite.improved_instruction, reward, updated_reward - reward])
+        steps.append([optim_span[0].span_id, optim_rewrite.instruction, reward, updated_reward - reward])
     return steps
 
 

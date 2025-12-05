@@ -4,6 +4,7 @@ backup/
 storage/
 data/
 .vscode/
+wkg.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

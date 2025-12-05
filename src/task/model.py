@@ -18,26 +18,8 @@ class BaseTemplate:
 
 class Critique(BaseModel):
     textual_gradient: str
-    # do: list[str]
-    # avoid: list[str]
-    # signal_focus: list[str]
 
 class CritiqueTemplate(BaseTemplate):
-    # _SCHEMA = (
-    #     "{{\n"
-    #     "  'textual_gradient': <1-2 strong imperative sentences telling the Rewrite LLM how to improve the instruction>,\n"
-    #     "  'do': [\n"
-    #     "    <specific phrase/constraint to ADD to the instruction>,\n"
-    #     "    <specific emphasis to STRENGTHEN>\n"
-    #     "  ],\n"
-    #     "  'avoid': [\n"
-    #     "    <types of content that are causing high non-target similarity>\n"
-    #     "  ],\n"
-    #     "  'signal_focus': [\n"
-    #     "    <keywords, entities, or structures that should be emphasized for the target>\n"
-    #     "  ]\n"
-    #     "}}\n"
-    #     )
     _SCHEMA = (
         "{{\n"
         "  'textual_gradient': <1-2 strong imperative sentences telling the Rewrite LLM how to improve the instruction>\n"
@@ -75,6 +57,7 @@ class CritiqueTemplate(BaseTemplate):
             "\n```\n"
             "RULES:\n"
             "- If any retrieved similarity (non-target) is >= target_similarity, you MUST introduce stricter constraints and/or negative filters.\n"
+            "- **The `textual gradient` MUST be a single, short sentence in English.**\n"
             "- Be short. Be sharp. Be operational.\n"
             "- Everything you output should be usable directly by a Rewrite LLM.\n"
         )
@@ -82,14 +65,12 @@ class CritiqueTemplate(BaseTemplate):
 
 
 class Rewrite(BaseModel):
-    improved_instruction: str
-    rationale: str
+    instruction: str
 
 class RewriteTemplate(BaseTemplate):
     _SCHEMA = (
         "{{\n"
-        "  'improved_instruction': <improved instruction>,\n"
-        "  'rationale': <1-2 sentence explanation>,\n"
+        "  'instruction': <improved instruction>,\n"
         "}}\n"
         )
 
@@ -107,10 +88,11 @@ class RewriteTemplate(BaseTemplate):
             "- <instruction> {instruction} </instruction>\n"
             "- <critique> {critique} </critique>\n\n"
             "CONSTRAINTS:\n"
-            "- Do NOT change the original user's intent\n"
-            "- Do NOT invent facts\n"
-            "- Keep <instruction> concise (1 sentence ideal)\n"
-            "OUTPUT (strict JSON):\n"
+            "- The rewritten instruction **MUST BE IN ENGLISH**.\n"
+            "- Do NOT change the original user's intent.\n"
+            "- Do NOT invent facts.\n"
+            "- Keep the rewritten instruction **extremely concise (must be a single, short sentence)**.\n\n"
+            "OUTPUT (strict JSON, containing only the improved instruction in the `instruction` field):\n"
             "```json\n"
         ) + self._SCHEMA + ("\n```\n")
         return PromptTemplate(template=template_str, engine="f-string")
