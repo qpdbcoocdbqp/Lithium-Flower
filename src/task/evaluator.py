@@ -2,7 +2,7 @@ import numpy as np
 from pydantic import BaseModel
 from rich.console import Console
 from agentlightning.types import PromptTemplate
-from task.utils import VectorStore
+from src.task.utils import VectorStore
 
 
 console = Console()

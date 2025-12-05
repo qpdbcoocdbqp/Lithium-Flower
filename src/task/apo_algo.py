@@ -15,9 +15,9 @@ from rich.console import Console
 from agentlightning.store import LightningStoreClient
 from agentlightning.types import PromptTemplate
 
-from task.utils import Encoder, VectorStore
-from task.model import Critique, Rewrite
-from task.evaluator import Evaluator
+from src.task.utils import Encoder, VectorStore
+from src.task.model import Critique, Rewrite
+from src.task.evaluator import Evaluator
 
 import os
 from dotenv import load_dotenv
