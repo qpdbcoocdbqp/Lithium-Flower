@@ -1,9 +1,3 @@
-# Copyright (c) Microsoft. All rights reserved.
-
-"""This sample code shows how to run a custom algorithm and rollout runner separately.
-
-"""
-
 import argparse
 import asyncio
 import json
@@ -15,11 +9,15 @@ from agentlightning.store import LightningStore
 from agentlightning.types import Dataset
 from src.task.optimize import RAGOptimizer
 
+
 console = Console()
 
 class ApoRolloutAgent(agl.LitAgent):
     async def rollout_async(self, task: str, resources: agl.NamedResources, rollout: agl.Rollout) -> agl.RolloutRawResult:
-        async_openai_client = AsyncOpenAI(base_url=os.getenv("BASE_URL"), api_key=os.getenv("API_KEY"))
+        async_openai_client = AsyncOpenAI(
+            base_url=os.getenv("MODEL_BASE_URL"),
+            api_key=os.getenv("API_KEY")
+            )
         optim = RAGOptimizer(async_openai_client=async_openai_client, critique_model=os.getenv("MODEL"), diversity_temperature=0.2)
         data = json.loads(task)
         # backward()
@@ -36,7 +34,8 @@ class ApoRolloutAgent(agl.LitAgent):
                 "instruction": data.get("instruction"),
                 "critique": critique_response.model_dump_json(indent=2)
             })
-
+        console.print(f"[bold red][Rollout][/bold red] Rollout ID: {rollout.rollout_id}")
+        console.print(f"[bold red][Rollout][/bold red] Attempt ID: {rollout.attempt.attempt_id}")
         result_span = agl.Span.from_attributes(
             rollout_id=rollout.rollout_id,
             attempt_id=rollout.attempt.attempt_id,

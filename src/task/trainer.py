@@ -1,11 +1,22 @@
 import asyncio
 import json
+import random
 import time
 import numpy as np
-from typing import Optional
-from rich.console import Console
-from pydantic import BaseModel
+import pyarrow as pa
+import pyarrow.compute as pc
 from agentlightning.store import LightningStore
+from pydantic import BaseModel
+from pyarrow.acero import (
+    Declaration,
+    TableSourceNodeOptions,
+    ProjectNodeOptions,
+    AggregateNodeOptions,
+    OrderByNodeOptions,
+    FilterNodeOptions
+    )
+from rich.console import Console
+from typing import Optional
 from src.task.evaluator import Evaluator
 from src.task.model import Critique, Rewrite
 from src.task.utils import QueryTask
@@ -21,11 +32,18 @@ class CandidateInstruction(BaseModel):
 
 
 class Trainer():
-    def __init__(self, store: LightningStore, evaluator: Evaluator):
+    def __init__(self, store: LightningStore, evaluator: Evaluator, history: list[CandidateInstruction]=None):
         self.tuner_marker = "[bold dark_violet][Trainer][/bold dark_violet]"
         self.store = store
         self.evaluator = evaluator
-        self._history: list[CandidateInstruction] = []
+        if history:
+            self._history = history
+        else:
+            self._history= [CandidateInstruction(
+                instruction="Given a query, retrieval the relevant parameter information from the configuration table."
+            )]
+        console.print(f"{self.tuner_marker} Trainer is initialized.")
+        pass
 
     async def submit_tasks(self, tasks: list[QueryTask], instruction: str) -> list:
         rollout_tasks = []
@@ -127,3 +145,67 @@ class Trainer():
         candidate_instructs = self.get_candidate_instructs(n=n)
         console.print(f"{self.tuner_marker} Candidate {len(candidate_instructs)} << Updated {len(updated_instructs)} <<  History {len(self._history)}")
         return candidate_instructs
+
+    def epoch(self, datasets=list[QueryTask], beam_n: int=2, batch_size=8, epoch=0, train_rate=0.3):
+        console.print(f"{self.tuner_marker} Epoeh {epoch}")
+        random.shuffle(datasets)
+        epoch_steps = len(datasets) // batch_size
+        train_session_step = int(epoch_steps * train_rate)
+        candidate_instructs = self.get_candidate_instructs(n=beam_n)
+        for n_step in range(max(train_session_step, 1)):
+            console.print(f"{self.tuner_marker} Step {n_step}")
+            candidate_instructs = self.step(
+                tasks=datasets[n_step*batch_size: (n_step+1)*batch_size],
+                instructs=candidate_instructs,
+                n=beam_n
+                )
+        return candidate_instructs
+
+    def evolute(self) -> CandidateInstruction:
+        evolution_df = pa.Table.from_pylist(list(map(lambda x: x.model_dump(), self._history)))
+        decl = Declaration.from_sequence([
+            Declaration("table_source", TableSourceNodeOptions(evolution_df)),
+            Declaration("project", ProjectNodeOptions(
+                list(map(pc.field, evolution_df.column_names)) + [pc.add(pc.field("origin_reward"), pc.field("delta_reward"))],
+                evolution_df.column_names + ["step_reward"]
+            )),
+            Declaration("aggregate", AggregateNodeOptions(
+                [
+                    ("instruction", "hash_one", None, "instruction"),
+                    ("origin_reward", "hash_mean", None, "origin_reward"),
+                    ("delta_reward", "hash_mean", None, "delta_reward"),
+                    ("step_reward", "hash_mean", None, "step_reward"),
+                    ("span_id", "hash_count", None, "count")
+                ],
+                keys=["span_id"]
+            )),
+            Declaration("filter", FilterNodeOptions(pc.greater(pc.field("delta_reward"), 0.0) & pc.greater(pc.field("count"), 1))),
+            Declaration("order_by", OrderByNodeOptions([("step_reward", "descending")])),
+        ])
+        result = decl.to_table()
+        del decl
+        if len(result) == 0:
+            decl = Declaration.from_sequence([
+                Declaration("table_source", TableSourceNodeOptions(evolution_df)),
+                Declaration("project", ProjectNodeOptions(
+                    list(map(pc.field, evolution_df.column_names)) + [pc.add(pc.field("origin_reward"), pc.field("delta_reward"))],
+                    evolution_df.column_names + ["step_reward"]
+                )),
+                Declaration("aggregate", AggregateNodeOptions(
+                    [
+                        ("instruction", "hash_one", None, "instruction"),
+                        ("origin_reward", "hash_mean", None, "origin_reward"),
+                        ("delta_reward", "hash_mean", None, "delta_reward"),
+                        ("step_reward", "hash_mean", None, "step_reward"),
+                        ("span_id", "hash_count", None, "count")
+                    ],
+                    keys=["span_id"]
+                )),
+                Declaration("filter", FilterNodeOptions(pc.greater(pc.field("count"), 1))),
+                Declaration("order_by", OrderByNodeOptions([("step_reward", "descending")])),
+            ])
+            result = decl.to_table()
+            del decl
+        del evolution_df
+        return CandidateInstruction(**result.take([0]).to_pylist()[0])
+

@@ -51,12 +51,13 @@ def to_ragset(data: list[dict]) -> Dataset[QueryTask]:
 
 # --- Vector Store ---
 class VectorStore():
-    def __init__(self, encoder: OpenAIEmbeddings, table_name: str, uri: str = None, storage_options: dict = None):
+    def __init__(self, encoder: OpenAIEmbeddings, table_name: str, uri: str = None, storage_options: dict = None,
+            vector_column: str="vector", source_column: str="text"):
         # Database of (text, vector)
         self.encoder = encoder
         self.embedding_config = EmbeddingFunctionConfig(
-            vector_column="vector",
-            source_column="text",
+            vector_column=vector_column,
+            source_column=source_column,
             function=EncoderWrapper(self.encoder)
             )
         self._conn = lancedb.connect(
@@ -70,7 +71,7 @@ class VectorStore():
         console.print(f"[bold yellow][VectorStore][/bold yellow] Update embedding fuction success")
         self.population = None
         pass
-    
+
     def search(self, query: Union[str, np.array]) -> list[dict]:
         if isinstance(query, str):
             query_vec = self.encoder.generate_embeddings([query])[0]

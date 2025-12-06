@@ -29,6 +29,7 @@ class Evaluator():
         self.eval_marker = "[bold dark_orange][Evaluator][/bold dark_orange]"
         self.prompt_template = prompt_template
         self.vector_store = vector_store
+        self.vector_column = vector_store.embedding_config.vector_column
         self.bias_weight = BiasWeight(**bias_weight) if bias_weight else BiasWeight()
         pass
 
@@ -42,9 +43,9 @@ class Evaluator():
         content = (self.vector_store._table.search()
             .where(f"id_ == '{target_id}'")
             .limit(1)
-            .select(["id_", "embedding"])
+            .select(["id_",self.vector_column])
             .to_list()[0])
-        similarity = np.dot(embedding, content.get("embedding"))
+        similarity = np.dot(embedding, content.get(self.vector_column))
         del content
         return similarity
 
