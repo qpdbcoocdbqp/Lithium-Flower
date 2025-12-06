@@ -26,7 +26,7 @@ def reward_function(
 
 class Evaluator():
     def __init__(self, prompt_template: PromptTemplate, vector_store: VectorStore, bias_weight: dict=None):
-        self.eval_marker = "[bold dark_orange][Evaluator][/bold dark_orange]"
+        self.marker = "[bold dark_orange][Evaluator][/bold dark_orange]"
         self.prompt_template = prompt_template
         self.vector_store = vector_store
         self.vector_column = vector_store.embedding_config.vector_column
@@ -58,13 +58,13 @@ class Evaluator():
         embedding_prompt = self.prompt_template.format(instruction=instruction, query=query)
         # target similarity
         target_similarity, query_emb = self._target_similarity(prompt=embedding_prompt, target=target)
-        console.print(f"{self.eval_marker} Target similarity: {target_similarity:.4f}")
+        console.print(f"{self.marker} Target similarity: {target_similarity:.4f}")
         # target content similarity
         target_content_similarity = self._target_content_similarity(embedding=query_emb, target_id=target_id)        
-        console.print(f"{self.eval_marker} Target content similarity: {target_content_similarity:.4f}")
+        console.print(f"{self.marker} Target content similarity: {target_content_similarity:.4f}")
         # retrieved distance
         retrieved_distance, retrieved_result = self._retrieved_distance(query=query_emb, target_id=target_id)
-        console.print((f"{self.eval_marker} Retrieved distance: {{dists}}").format(
+        console.print((f"{self.marker} Retrieved distance: {{dists}}").format(
             dists=["{dist:.4f}".format(dist=dist) for dist in retrieved_distance]
             ))
         reward = reward_function(
@@ -73,6 +73,6 @@ class Evaluator():
             retrieved_distance=retrieved_distance,
             bias_weight=self.bias_weight
             )
-        console.print(f"{self.eval_marker} Reward: {reward:.4f}")
+        console.print(f"{self.marker} Reward: {reward:.4f}")
         del embedding_prompt, query_emb, target_content_similarity, retrieved_distance
         return reward, target_similarity, retrieved_result

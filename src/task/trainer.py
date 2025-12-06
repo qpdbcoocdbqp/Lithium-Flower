@@ -33,7 +33,7 @@ class CandidateInstruction(BaseModel):
 
 class Trainer():
     def __init__(self, store: LightningStore, evaluator: Evaluator, history: list[CandidateInstruction]=None):
-        self.tuner_marker = "[bold dark_violet][Trainer][/bold dark_violet]"
+        self.marker = "[bold dark_violet][Trainer][/bold dark_violet]"
         self.store = store
         self.evaluator = evaluator
         if history:
@@ -42,7 +42,7 @@ class Trainer():
             self._history= [CandidateInstruction(
                 instruction="Given a query, retrieval the relevant parameter information from the configuration table."
             )]
-        console.print(f"{self.tuner_marker} Trainer is initialized.")
+        console.print(f"{self.marker} Trainer is initialized.")
         pass
 
     async def submit_tasks(self, tasks: list[QueryTask], instruction: str) -> list:
@@ -69,7 +69,7 @@ class Trainer():
                 })
             # rollout = asyncio.run(store.enqueue_rollout(input=apo_task, mode="train"))
             rollout = await self.store.enqueue_rollout(input=apo_task, mode="train")
-            console.print(f"{self.tuner_marker} Enqueued Task {i}")
+            console.print(f"{self.marker} Enqueued Task {i}")
             rollout_tasks.append(task)
             rollout_ids.append(rollout.rollout_id)
             rollout_rewards.append(reward)
@@ -82,13 +82,15 @@ class Trainer():
                 # rollouts = asyncio.run(store.wait_for_rollouts(rollout_ids=[rollout_id], timeout=0.01))
                 rollouts = await self.store.wait_for_rollouts(rollout_ids=[rollout_id], timeout=0.01)
                 if len(rollouts) == 0:
-                    time.sleep(2.5)
+                    time.sleep(1.5)
                 else:
                     break
-            console.print(f"{self.tuner_marker} Received rollout ID: {rollouts[0].rollout_id}")
+            console.print(f"{self.marker} Received rollout ID: {rollouts[0].rollout_id}")
+            
             # skip task if status is not succeeded
             if rollouts[0].status != "succeeded":
-                console.print(f"{self.tuner_marker} Rollout ID: {rollouts[0].rollout_id} is not succeeded")                
+                console.print(f"{self.marker} Received rollout ID: {rollouts}")
+                console.print(f"{self.marker} Rollout ID: {rollouts[0].rollout_id} is not succeeded")                
                 continue
             # optim_span = asyncio.run(store.query_spans(rollout_id=rollouts[0].rollout_id, name="optimizer.output"))
             optim_span = await self.store.query_spans(rollout_id=rollouts[0].rollout_id, name="optimizer.output")
@@ -101,7 +103,7 @@ class Trainer():
                 target=task.target,
                 target_id=task.id
                 )
-            console.print(f"{self.tuner_marker} Updated reward: {updated_reward:.4f}")
+            console.print(f"{self.marker} Updated reward: {updated_reward:.4f}")
             # [`span_id`, `updated-instruction`, `origin-reward`, `delta-reward`]
             steps.append(
                 CandidateInstruction(
@@ -113,13 +115,13 @@ class Trainer():
             )
         return steps
 
-    def get_candidate_instructs(self, n: int=2) -> list[CandidateInstruction]:
+    def get_candidate_instructs(self, beam_n: int=2) -> list[CandidateInstruction]:
         self._history = sorted(self._history, key=lambda x: x.origin_reward + x.delta_reward, reverse=True)
         # pick top 2 best instructions
-        candidate_instructs = self._history[:n]
+        candidate_instructs = self._history[:beam_n]
         return candidate_instructs
 
-    def step(self, tasks=list[QueryTask], instructs=list[CandidateInstruction], n: int=2) -> list[CandidateInstruction]:
+    def step(self, tasks=list[QueryTask], instructs=list[CandidateInstruction], beam_n: int=2, n_step=0) -> list[CandidateInstruction]:
         updated_instructs = []
         # step each candidate instruction with tasks
         for candi_inst in instructs: 
@@ -142,22 +144,22 @@ class Trainer():
         # save updated instructions
         self._history.extend(updated_instructs)
         # sort by reward
-        candidate_instructs = self.get_candidate_instructs(n=n)
-        console.print(f"{self.tuner_marker} Candidate {len(candidate_instructs)} << Updated {len(updated_instructs)} <<  History {len(self._history)}")
+        candidate_instructs = self.get_candidate_instructs(beam_n=beam_n)
+        console.print(f"{self.marker} Step {n_step}: History {len(self._history)}>> Updated {len(updated_instructs)}>> Candidate {len(candidate_instructs)}")
         return candidate_instructs
 
     def epoch(self, datasets=list[QueryTask], beam_n: int=2, batch_size=8, epoch=0, train_rate=0.3):
-        console.print(f"{self.tuner_marker} Epoeh {epoch}")
+        console.print(f"{self.marker} Epoeh {epoch}")
         random.shuffle(datasets)
         epoch_steps = len(datasets) // batch_size
         train_session_step = int(epoch_steps * train_rate)
-        candidate_instructs = self.get_candidate_instructs(n=beam_n)
+        candidate_instructs = self.get_candidate_instructs(beam_n=beam_n)
         for n_step in range(max(train_session_step, 1)):
-            console.print(f"{self.tuner_marker} Step {n_step}")
             candidate_instructs = self.step(
                 tasks=datasets[n_step*batch_size: (n_step+1)*batch_size],
                 instructs=candidate_instructs,
-                n=beam_n
+                beam_n=beam_n,
+                n_step=n_step
                 )
         return candidate_instructs
 
