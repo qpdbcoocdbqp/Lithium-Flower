@@ -163,7 +163,7 @@ class Tuner():
                 )
         return candidate_instructs
 
-    def evolute(self) -> CandidateInstruction:
+    def evolve(self) -> CandidateInstruction:
         evolution_df = pa.Table.from_pylist(list(map(lambda x: x.model_dump(), self._history)))
         decl = Declaration.from_sequence([
             Declaration("table_source", TableSourceNodeOptions(evolution_df)),

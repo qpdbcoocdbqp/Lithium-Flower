@@ -31,6 +31,7 @@ class Evaluator():
         self.vector_store = vector_store
         self.vector_column = vector_store.embedding_config.vector_column
         self.bias_weight = BiasWeight(**bias_weight) if bias_weight else BiasWeight()
+        console.print(f"{self.marker} Evaluator is initialized.")
         pass
 
     def _target_similarity(self, prompt: str, target: str):
