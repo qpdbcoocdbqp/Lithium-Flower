@@ -31,9 +31,9 @@ class CandidateInstruction(BaseModel):
     delta_reward: Optional[float]=0.0
 
 
-class Trainer():
+class Tuner():
     def __init__(self, store: LightningStore, evaluator: Evaluator, history: list[CandidateInstruction]=None):
-        self.marker = "[bold dark_violet][Trainer][/bold dark_violet]"
+        self.marker = "[bold dark_violet][Truner][/bold dark_violet]"
         self.store = store
         self.evaluator = evaluator
         if history:
@@ -42,7 +42,7 @@ class Trainer():
             self._history= [CandidateInstruction(
                 instruction="Given a query, retrieval the relevant parameter information from the configuration table."
             )]
-        console.print(f"{self.marker} Trainer is initialized.")
+        console.print(f"{self.marker} Truner is initialized.")
         pass
 
     async def submit_tasks(self, tasks: list[QueryTask], instruction: str) -> list:

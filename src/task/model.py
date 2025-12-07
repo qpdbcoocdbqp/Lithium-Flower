@@ -15,7 +15,6 @@ class BaseTemplate:
         raise NotImplementedError
 
 # Critique
-
 class Critique(BaseModel):
     textual_gradient: str
 
@@ -63,7 +62,7 @@ class CritiqueTemplate(BaseTemplate):
         )
         return PromptTemplate(template=template_str, engine="f-string")
 
-
+# Rewrite
 class Rewrite(BaseModel):
     instruction: str
 

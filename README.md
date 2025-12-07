@@ -22,3 +22,46 @@ docker compose down
 rm -r ./data
 ```
 - store dashboard: `http://localhost:45993`
+
+## Components
+
+**Store** (Message Queue)
+* Use `agent lightning store` to be the tuning message queue.
+
+**Model**
+* **model**: Define the `Critique` and `Rewrite` templates.
+
+**Runner** (Agent)
+* **optimize**: Create a `RAGOptimizer` to tune the instruction prompt in the RAG pipeline.
+
+**Tuner**
+* **evaluator**: Define a reward function and interface with the vector store.
+
+**Utils**
+* **Encoder**: LLM client for generating embeddings.
+* **VectorStore**: Vector store client. Here integrate [`LanceDB`](https://github.com/lancedb/lancedb).
+
+
+## Prompt tuning
+```mermaid
+sequenceDiagram
+participant VectorStore@{"type":"database" }
+participant Tuner@{"type":"boundary" }
+participant Store@{"type":"queue"}
+participant Runners@{"type":"collections" }
+VectorStore->Tuner: connenct
+Note over Tuner: Get a prompt tuning request
+Tuner->>Store: Create resource<br/>to save prompt
+Tuner->>+VectorStore: Get dataset
+VectorStore->>-Tuner: dataset<br/>(query, target)
+Note over Tuner: Forward processing
+Tuner->>Store:submit<br>(enqueue task)
+Note over Tuner: wait for span
+Store->>+Runners:execute<br>(pop task)
+Note over Runners: Backward processing
+Runners->>-Store:sumbit<br>(enqueue span)
+Store->>Tuner:pull<br>(pop span)
+Note over Tuner: Update prompt
+Tuner->>Store: Update  prompt in resource
+
+```

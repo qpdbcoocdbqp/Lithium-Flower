@@ -1,13 +1,20 @@
 import argparse
 import asyncio
 import json
-from typing import Optional, Sequence
 from openai import AsyncOpenAI
 from rich.console import Console
-from opentelemetry import trace
-import agentlightning as agl
-from agentlightning.store import LightningStore
-from agentlightning.types import Dataset
+from agentlightning import (
+    LightningStore,
+    LitAgent,
+    LitAgentRunner,
+    NamedResources,
+    OtelTracer,
+    Rollout,
+    RolloutRawResult,
+    Span,
+    Tracer,
+    )
+
 from src.task.optimize import RAGOptimizer
 
 
@@ -15,8 +22,8 @@ console = Console()
 
 marker = "[bold red][Agent][/bold red]"
 
-class ApoRolloutAgent(agl.LitAgent):
-    async def rollout_async(self, task: str, resources: agl.NamedResources, rollout: agl.Rollout) -> agl.RolloutRawResult:
+class ApoRolloutAgent(LitAgent):
+    async def rollout_async(self, task: str, resources: NamedResources, rollout: Rollout) -> RolloutRawResult:
         async_openai_client = AsyncOpenAI(
             base_url=os.getenv("MODEL_BASE_URL"),
             api_key=os.getenv("API_KEY")
@@ -49,7 +56,7 @@ class ApoRolloutAgent(agl.LitAgent):
             })
 
         # Create result span
-        result_span = agl.Span.from_attributes(
+        result_span = Span.from_attributes(
             rollout_id=rollout.rollout_id,
             attempt_id=rollout.attempt.attempt_id,
             sequence_id=3,
@@ -65,7 +72,7 @@ class ApoRolloutAgent(agl.LitAgent):
         console.print(f"{marker} rollout_id: {rollout.rollout_id} Returning {len(all_spans)} spans")
         return all_spans
 
-async def initialize_worker(worker_id: int, store: agl.LightningStore, tracer: agl.Tracer, max_rollouts: int = None):
+async def initialize_worker(worker_id: int, store: LightningStore, tracer: Tracer, max_rollouts: int = None):
     """
     Initialize and run a single worker.
     
@@ -79,7 +86,7 @@ async def initialize_worker(worker_id: int, store: agl.LightningStore, tracer: a
 
     
     # Create the runner
-    runner = agl.LitAgentRunner(
+    runner = LitAgentRunner(
         tracer=tracer,
         max_rollouts=max_rollouts,
         poll_interval=2.0,  # Poll every 2 seconds (faster for demo)
@@ -112,8 +119,7 @@ async def initialize_worker(worker_id: int, store: agl.LightningStore, tracer: a
 
 async def main(num_workers, store, max_rollouts_per_worker=None):
     # Create a single shared tracer for all workers
-    # tracer = agl.AgentOpsTracer()
-    tracer = agl.OtelTracer()
+    tracer = OtelTracer()
     
     try:
         # Create tasks for all workers
