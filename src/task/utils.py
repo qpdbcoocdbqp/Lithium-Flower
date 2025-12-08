@@ -42,9 +42,9 @@ class QueryTask:
     query: str
     target: str
 
-def to_ragset(data: list[dict]) -> Dataset[QueryTask]:
+def to_ragset(data: list[dict], id_column: str="id_",query_column: str="metadata.query", target_column: str="metadata.target") -> Dataset[QueryTask]:
     dataset = cast(Dataset[QueryTask], [
-        QueryTask(id=row.get("id_"), query=row.get("metadata.query"), target=row.get("metadata.target"))
+        QueryTask(id=row.get(id_column), query=row.get(query_column), target=row.get(target_column))
         for row in data
         ])
     return dataset
@@ -52,8 +52,10 @@ def to_ragset(data: list[dict]) -> Dataset[QueryTask]:
 # --- Vector Store ---
 class VectorStore():
     def __init__(self, encoder: OpenAIEmbeddings, table_name: str, uri: str = None, storage_options: dict = None,
-            vector_column: str="vector", source_column: str="text"):
+            vector_column: str="vector", source_column: str="text",
+            id_column: str="id_", query_column: str="metadata.query", target_column: str="metadata.target"):
         # Database of (text, vector)
+        self.marker = "[bold cornflower_blue][VectorStore][/bold cornflower_blue]"
         self.encoder = encoder
         self.embedding_config = EmbeddingFunctionConfig(
             vector_column=vector_column,
@@ -64,11 +66,15 @@ class VectorStore():
             uri=uri,
             storage_options=storage_options
         )
-        console.print(f"[bold yellow][VectorStore][/bold yellow] Connect success")
+        console.print(f"{self.marker} Connect success")
         self._table = self._conn.open_table(table_name)
-        console.print(f"[bold yellow][VectorStore][/bold yellow] Open table success")
+        console.print(f"{self.marker} Open table success")
+        self.id_column = id_column
+        self.query_column = query_column
+        self.target_column = target_column
+        console.print(f"{self.marker} dataset with query_column: {self.query_column}, target_column: {self.target_column}")        
         self._table.embedding_functions.update({"embedding": self.embedding_config})
-        console.print(f"[bold yellow][VectorStore][/bold yellow] Update embedding fuction success")
+        console.print(f"{self.marker} Update embedding fuction success")
         self.population = None
         pass
 
@@ -86,7 +92,7 @@ class VectorStore():
     def _population(self):
         if self.population is None:
             self.population = self._table.search().select(
-                ["id_", "metadata.query", "metadata.target"]
+                [self.id_column, self.query_column, self.target_column]
                 ).to_list()
         pass
 
@@ -97,4 +103,4 @@ class VectorStore():
 
     def to_ragset(self) -> Dataset[QueryTask]:
         self._population()
-        return to_ragset(self.population)
+        return to_ragset(self.population, id_column=self.id_column, query_column=self.query_column, target_column=self.target_column)
