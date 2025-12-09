@@ -8,6 +8,8 @@ from src.task.model import (
     RewriteTemplate
 )
 from rich.console import Console
+
+
 console = Console()
 
 class APOptimizerBase:

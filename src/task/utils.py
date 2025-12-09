@@ -42,7 +42,7 @@ class QueryTask:
     query: str
     target: str
 
-def to_ragset(data: list[dict], id_column: str="id_",query_column: str="metadata.query", target_column: str="metadata.target") -> Dataset[QueryTask]:
+def to_querytasks(data: list[dict], id_column: str="id_",query_column: str="metadata.query", target_column: str="metadata.target") -> Dataset[QueryTask]:
     dataset = cast(Dataset[QueryTask], [
         QueryTask(id=row.get(id_column), query=row.get(query_column), target=row.get(target_column))
         for row in data
@@ -101,6 +101,6 @@ class VectorStore():
         random.shuffle(self.population)
         return self.population[:min(n, len(self.population))]
 
-    def to_ragset(self) -> Dataset[QueryTask]:
+    def to_querytasks(self) -> Dataset[QueryTask]:
         self._population()
-        return to_ragset(self.population, id_column=self.id_column, query_column=self.query_column, target_column=self.target_column)
+        return to_querytasks(self.population, id_column=self.id_column, query_column=self.query_column, target_column=self.target_column)

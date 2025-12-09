@@ -32,7 +32,7 @@ rm -r ./data
 * **model**: Define the `Critique` and `Rewrite` templates.
 
 **Runner** (Agent)
-* **optimize**: Create a `RAGOptimizer` to tune the instruction prompt in the RAG pipeline.
+* **optimizer**: Create a `RAGOptimizer` to tune the instruction prompt in the RAG pipeline.
 
 **Tuner**
 * **evaluator**: Define a reward function and interface with the vector store.
@@ -64,4 +64,17 @@ Store->>Tuner:pull<br>(pop span)
 Note over Tuner: Update prompt
 Tuner->>Store: Update  prompt in resource
 
+```
+
+
+## start runner
+```sh
+# use .env LIGHTNING_NUM_RUNNER to set the number of runner.
+python -m src.task.runner
+```
+
+## start tuning process
+```sh
+# after runner started, here put tasks to queue.
+python -m src.task.main --batch-size 2 --epochs 1 --beam-n 1 --train-rate 0.1
 ```

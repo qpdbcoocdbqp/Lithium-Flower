@@ -8,6 +8,7 @@ EMBED_DIM=<embedding dimension>
 
 # lightning store
 LIGHTNING_STORE_URL=<lightning storeurl>
+LIGHTNING_NUM_RUNNER=<number of lightning runner>
 
 # vector store
 LANCEDB_URI=<lancdb path or uri>

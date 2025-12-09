@@ -121,13 +121,15 @@ class Tuner():
         candidate_instructs = self._history[:beam_n]
         return candidate_instructs
 
-    def step(self, tasks=list[QueryTask], instructs=list[CandidateInstruction], beam_n: int=2, n_step=0) -> list[CandidateInstruction]:
+    async def step(self, tasks=list[QueryTask], instructs=list[CandidateInstruction], beam_n: int=2, n_step=0) -> list[CandidateInstruction]:
         updated_instructs = []
         # step each candidate instruction with tasks
         for candi_inst in instructs: 
-            submitted_tasks = asyncio.run(self.submit_tasks(tasks=tasks, instruction=candi_inst.instruction))
+            submitted_tasks = await self.submit_tasks(tasks=tasks, instruction=candi_inst.instruction)
+            # submitted_tasks = asyncio.run(self.submit_tasks(tasks=tasks, instruction=candi_inst.instruction))
             pull_queues = list(zip(*submitted_tasks))
-            improved_insts = asyncio.run(self.pull_tasks(queues=pull_queues))
+            improved_insts = await self.pull_tasks(queues=pull_queues)
+            # improved_insts = asyncio.run(self.pull_tasks(queues=pull_queues))
             # aggregate reward by tasks for original candidate instruction
             updated_reward = np.mean(list(map(lambda x: x.origin_reward, improved_insts)))
             # update reward for original candidate instruction
@@ -148,14 +150,14 @@ class Tuner():
         console.print(f"{self.marker} Step {n_step}: History {len(self._history)}>> Updated {len(updated_instructs)}>> Candidate {len(candidate_instructs)}")
         return candidate_instructs
 
-    def epoch(self, datasets=list[QueryTask], beam_n: int=2, batch_size=8, epoch=0, train_rate=0.3):
+    async def epoch(self, datasets=list[QueryTask], beam_n: int=2, batch_size=8, epoch=0, train_rate=0.3):
         console.print(f"{self.marker} Epoeh {epoch}")
         random.shuffle(datasets)
         epoch_steps = len(datasets) // batch_size
         train_session_step = int(epoch_steps * train_rate)
         candidate_instructs = self.get_candidate_instructs(beam_n=beam_n)
         for n_step in range(max(train_session_step, 1)):
-            candidate_instructs = self.step(
+            candidate_instructs = await self.step(
                 tasks=datasets[n_step*batch_size: (n_step+1)*batch_size],
                 instructs=candidate_instructs,
                 beam_n=beam_n,

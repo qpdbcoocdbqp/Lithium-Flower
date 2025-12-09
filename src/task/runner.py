@@ -1,4 +1,3 @@
-import argparse
 import asyncio
 import json
 from openai import AsyncOpenAI
@@ -12,26 +11,30 @@ from agentlightning import (
     Rollout,
     RolloutRawResult,
     Span,
-    Tracer,
+    Tracer
     )
 
-from src.task.optimize import RAGOptimizer
+from src.task.optimizer import RAGOptimizer
 
 
 console = Console()
-
 marker = "[bold red][Agent][/bold red]"
 
 class ApoRolloutAgent(LitAgent):
-    async def rollout_async(self, task: str, resources: NamedResources, rollout: Rollout) -> RolloutRawResult:
-        async_openai_client = AsyncOpenAI(
+    def __init__(self):
+        super().__init__()
+        self.async_openai_client = AsyncOpenAI(
             base_url=os.getenv("MODEL_BASE_URL"),
             api_key=os.getenv("API_KEY")
-            )      
-             
+        )
+
+    async def close(self):
+        await self.async_openai_client.close()
+
+    async def rollout_async(self, task: str, resources: NamedResources, rollout: Rollout) -> RolloutRawResult:
         # console.print(f"{marker} Initial Optimizer")
         optim = RAGOptimizer(
-            async_openai_client=async_openai_client, 
+            async_openai_client=self.async_openai_client,
             critique_model=os.getenv("MODEL"), 
             diversity_temperature=0.2,
             rollout_id=rollout.rollout_id,
@@ -72,24 +75,24 @@ class ApoRolloutAgent(LitAgent):
         console.print(f"{marker} rollout_id: {rollout.rollout_id} Returning {len(all_spans)} spans")
         return all_spans
 
-async def initialize_worker(worker_id: int, store: LightningStore, tracer: Tracer, max_rollouts: int = None):
+async def initialize_runner(runner_id: int, store: LightningStore, tracer: Tracer, max_rollouts: int = None):
     """
-    Initialize and run a single worker.
+    Initialize and run a single runner.
     
     Args:
-        worker_id: Unique identifier for this worker
+        runner_id: Unique identifier for this runner
         store: The LightningStore instance to connect to
-        tracer: Shared tracer instance for all workers
+        tracer: Shared tracer instance for all runners
         max_rollouts: Maximum number of rollouts to process (None = unlimited)
     """
-    print(f"🚀 Starting Worker-{worker_id}...")
+    console.print(f"{marker} Starting Runner-{runner_id}...")
 
     
     # Create the runner
     runner = LitAgentRunner(
         tracer=tracer,
         max_rollouts=max_rollouts,
-        poll_interval=2.0,  # Poll every 2 seconds (faster for demo)
+        poll_interval=2.0,  # Poll every 2 seconds (faster if poll_interval lower)
         heartbeat_interval=10.0
     )
     
@@ -97,14 +100,14 @@ async def initialize_worker(worker_id: int, store: LightningStore, tracer: Trace
     agent = ApoRolloutAgent()
     runner.init(agent=agent, hooks=[])
     
-    # Initialize the worker with store connection
-    # Only initialize tracer for the first worker to avoid TracerProvider override
-    if worker_id == 0:
-        runner.init_worker(worker_id=worker_id, store=store)
+    # Initialize the runner with store connection
+    # Only initialize tracer for the first runner to avoid TracerProvider override
+    if runner_id == 0:
+        runner.init_worker(worker_id=runner_id, store=store)
     else:
-        # For subsequent workers, manually set store and worker_id without reinitializing tracer
+        # For subsequent Runners, manually set store and runner_id without reinitializing tracer
         runner._store = store
-        runner.worker_id = worker_id
+        runner.worker_id = runner_id
         # Manually set tracer's store without reinitializing TracerProvider
         if hasattr(tracer, '_store'):
             tracer._store = store
@@ -112,29 +115,41 @@ async def initialize_worker(worker_id: int, store: LightningStore, tracer: Trace
     try:
         # Start processing rollouts
         await runner.iter()
+    except asyncio.CancelledError:
+        console.print(f"{marker} Runner-{runner_id} was cancelled.")
+    except Exception as e:
+        console.print(f"{marker} Runner-{runner_id} encountered an error: {e}")
     finally:
         # Clean up
-        runner.teardown_worker(worker_id)
-        print(f"🏁 Worker-{worker_id} finished.")
+        await agent.close()
+        runner.teardown_worker(runner_id)
+        console.print(f"{marker} Runner-{runner_id} finished.")
 
-async def main(num_workers, store, max_rollouts_per_worker=None):
-    # Create a single shared tracer for all workers
+async def main(num_runners, store, max_rollouts_per_runner=None):
+    # Create a single shared tracer for all runners
     tracer = OtelTracer()
     
     try:
-        # Create tasks for all workers
+        # Create tasks for all runners
         tasks = [
-            initialize_worker(worker_id=i, store=store, tracer=tracer, max_rollouts=max_rollouts_per_worker)
-            for i in range(num_workers)
+            initialize_runner(
+                runner_id=i,
+                store=store,
+                tracer=tracer,
+                max_rollouts=max_rollouts_per_runner
+                )
+            for i in range(num_runners)
         ]
         
-        # Run all workers concurrently
+        # Run all runners concurrently
         await asyncio.gather(*tasks)
+    except asyncio.CancelledError:
+        console.print(f"{marker} Main task cancelled. Shutting down runners...")
         
     finally:
         # Clean up the store connection
         await store.close()
-        print("\n🎉 All workers completed. Store closed.")
+        console.print(f"{marker} All Wunners completed. Store closed.")
 
 if __name__ == "__main__":
     import os
@@ -143,4 +158,4 @@ if __name__ == "__main__":
     load_dotenv()
 
     store = LightningStoreClient(os.getenv("LIGHTNING_STORE_URL"))
-    asyncio.run(main(num_workers=2, store=store))
+    asyncio.run(main(num_runners=int(os.getenv("LIGHTNING_NUM_RUNNER")), store=store))
