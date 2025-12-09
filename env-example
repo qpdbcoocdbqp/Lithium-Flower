@@ -1,0 +1,23 @@
+# llm client
+API_KEY=<model api key>
+MODEL_BASE_URL=<llm model url>
+MODEL=<llm model name>
+EMBED_BASE_URL=<embedding model url>
+EMBED_MODEL=<embedding model name>
+EMBED_DIM=<embedding dimension>
+
+# lightning store
+LIGHTNING_STORE_URL=<lightning storeurl>
+LIGHTNING_NUM_RUNNER=<number of lightning runner>
+
+# vector store
+LANCEDB_URI=<lancdb path or uri>
+TABLE_NAME=<lancdb table name>
+LANCEDB_VECTOR_COLUMN=<lancdb vector column name>
+LANCEDB_QUERY_COLUMN=<lancdb query column>
+LANCEDB_TARGET_COLUMN=<lancdb target column>
+LANCEDB_ACCESS_KEY=<lancdb s3 access key>
+LANCEDB_SECRET_KEY=<lancdb s3 secret key>
+LANCEDB_REGION=<lancdb s3 region>
+LANCEDB_ENDPOINT=<lancdb s3 endpoint>
+LANCEDB_ALLOW_HTTP=<lancdb s3 allow http>

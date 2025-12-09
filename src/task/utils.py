@@ -1,0 +1,106 @@
+import random
+import lancedb
+import numpy as np
+from lancedb.embeddings import EmbeddingFunctionConfig, EmbeddingFunction, OpenAIEmbeddings
+from typing import Optional, Sequence, Tuple, Union
+from rich.console import Console
+from agentlightning.types import Dataset
+from dataclasses import dataclass
+from typing import cast
+
+
+console = Console()
+
+class Encoder(OpenAIEmbeddings):
+    def ndims(self):
+        return self.dim
+
+class EncoderWrapper(EmbeddingFunction):
+    def __init__(self, encoder: OpenAIEmbeddings) -> None:
+        super().__init__()
+        self._encoder = encoder
+        self._ndims = encoder.dim
+        pass
+    
+    def compute_query_embeddings(self, query, *args, **kwargs) -> list[Union[np.array, None]]:
+        if isinstance(query, str):
+            return self._encoder.generate_embeddings(texts=[query])
+        return self._encoder.generate_embeddings(texts=query)
+    
+    def compute_source_embeddings(self, texts, *args, **kwargs) -> list[Union[np.array, None]]:
+        if isinstance(texts, str):
+            return self._encoder.generate_embeddings(texts=[texts])
+        return self._encoder.generate_embeddings(texts=texts)
+    
+    def ndims(self) -> int:
+        return self._ndims
+
+# RAG dataset
+@dataclass
+class QueryTask:
+    id: str
+    query: str
+    target: str
+
+def to_querytasks(data: list[dict], id_column: str="id_",query_column: str="metadata.query", target_column: str="metadata.target") -> Dataset[QueryTask]:
+    dataset = cast(Dataset[QueryTask], [
+        QueryTask(id=row.get(id_column), query=row.get(query_column), target=row.get(target_column))
+        for row in data
+        ])
+    return dataset
+
+# --- Vector Store ---
+class VectorStore():
+    def __init__(self, encoder: OpenAIEmbeddings, table_name: str, uri: str = None, storage_options: dict = None,
+            vector_column: str="vector", source_column: str="text",
+            id_column: str="id_", query_column: str="metadata.query", target_column: str="metadata.target"):
+        # Database of (text, vector)
+        self.marker = "[bold cornflower_blue][VectorStore][/bold cornflower_blue]"
+        self.encoder = encoder
+        self.embedding_config = EmbeddingFunctionConfig(
+            vector_column=vector_column,
+            source_column=source_column,
+            function=EncoderWrapper(self.encoder)
+            )
+        self._conn = lancedb.connect(
+            uri=uri,
+            storage_options=storage_options
+        )
+        console.print(f"{self.marker} Connect success")
+        self._table = self._conn.open_table(table_name)
+        console.print(f"{self.marker} Open table success")
+        self.id_column = id_column
+        self.query_column = query_column
+        self.target_column = target_column
+        console.print(f"{self.marker} dataset with query_column: {self.query_column}, target_column: {self.target_column}")        
+        self._table.embedding_functions.update({"embedding": self.embedding_config})
+        console.print(f"{self.marker} Update embedding fuction success")
+        self.population = None
+        pass
+
+    def search(self, query: Union[str, np.array]) -> list[dict]:
+        if isinstance(query, str):
+            query_vec = self.encoder.generate_embeddings([query])[0]
+        else:
+            query_vec = query
+        result = self._table.search(
+            query=query_vec, query_type="vector"
+            ).metric("cosine").limit(5).select(["id_", "text", "_distance"]).to_list()
+        del query_vec
+        return result
+    
+    def _population(self):
+        if self.population is None:
+            self.population = self._table.search().select(
+                [self.id_column, self.query_column, self.target_column]
+                ).to_list()
+        pass
+
+    def sample(self, n: int):
+        self._population()
+        random.shuffle(self.population)
+        return self.population[:min(n, len(self.population))]
+
+    def to_querytasks(self) -> Dataset[QueryTask]:
+        self._population()
+        return to_querytasks(self.population, id_column=self.id_column, query_column=self.query_column, target_column=self.target_column)
